@@ -574,4 +574,361 @@ Use KPL when producer throughput is high and aggregation/batching is needed.
 
 ---
 
+Below is the **same clean Q&A format** you used for SQS/SNS and Kinesis Data Streams — now fully written for **Amazon Kinesis Data Firehose**.
+Short, crisp, interview-ready, and product-company friendly.
+
+You can copy-paste this directly into your repo.
+
+---
+
+# **📘 Amazon Kinesis Data Firehose — Interview Questions & Answers**
+
+---
+
+### **What is Amazon Kinesis Data Firehose, and how does it work?**
+
+**Answer:**
+Amazon Kinesis Data Firehose is a fully managed service used to **load streaming data into AWS destinations** such as S3, Redshift, OpenSearch, and Splunk. Firehose automatically batches, compresses, transforms, and reliably delivers data without requiring custom consumers. It scales automatically and requires **zero management**.
+
+---
+
+### **How does Firehose differ from Kinesis Data Streams?**
+
+**Answer:**
+
+| Feature    | Kinesis Data Streams      | Kinesis Data Firehose                      |
+| ---------- | ------------------------- | ------------------------------------------ |
+| Consumer   | Custom (Lambda, KCL, EFO) | Fully automated                            |
+| Latency    | 70–200ms                  | 1–120 seconds                              |
+| Processing | Your code                 | Firehose does batching, compression, retry |
+| Scaling    | Manual / On-demand        | Auto-scaling                               |
+| Use cases  | Real-time apps            | Delivering to S3/Redshift/ES/Splunk        |
+
+Firehose focuses on **managed delivery**, not custom streaming logic.
+
+---
+
+### **What destinations does Firehose support?**
+
+**Answer:**
+
+* **Amazon S3** (any format)
+* **Amazon Redshift**
+* **Amazon OpenSearch Service**
+* **Splunk**
+* **Custom HTTP endpoints**
+* **Datadog, NewRelic, MongoDB Atlas** via partner destinations
+
+---
+
+### **Does Firehose require managing shards?**
+
+**Answer:**
+**No.** Firehose has **no shards**. It automatically scales based on incoming throughput.
+
+---
+
+### **What is Firehose’s delivery latency?**
+
+**Answer:**
+
+* **S3**: 1–120 seconds (default 60 seconds or 1MB buffer)
+* **Redshift**: Firehose loads data into S3, then COPYs into Redshift → ~1–5 min
+* **OpenSearch**: ~1 second to 60 seconds depending on buffer settings
+
+---
+
+### **What are Firehose buffer hints?**
+
+**Answer:**
+Buffer hints define when Firehose should flush data to the destination.
+They include:
+
+* **Buffer Size (1–128 MB)**
+* **Buffer Interval (60–900 seconds)**
+
+Firehose flushes **whichever limit is reached first**.
+
+---
+
+### **How does Firehose ensure reliability?**
+
+**Answer:**
+
+* Automatically retries failed deliveries
+* Stores failed events temporarily
+* Can route permanently failed events to **S3 Backup / DLQ Bucket**
+* Supports at-least-once delivery
+* Uses S3 as intermediary before loading to Redshift
+
+---
+
+### **What is backup (S3 Backup Mode) in Firehose?**
+
+**Answer:**
+Backup Mode sends:
+
+* **All records** (primary + failed) OR
+* **Only failed records**
+
+to an S3 backup bucket so you can inspect or reprocess them.
+
+---
+
+### **Can Firehose transform data before delivering?**
+
+**Answer:**
+**Yes**, using:
+
+1. **Lambda Transformations** — custom JS/Python code
+2. **Record format conversion** — Parquet/ORC for S3
+3. **Dynamic partitioning** based on record attributes (S3 partition folders)
+
+---
+
+### **What is Dynamic Partitioning in Firehose?**
+
+**Answer:**
+Dynamic partitioning allows Firehose to write to **different S3 prefixes** based on attribute values inside each event.
+Example:
+`/year=2025/month=01/day=15/hour=12/region=us-east-1/`
+
+This is extremely useful for analytics (Athena, Glue, Redshift).
+
+---
+
+### **How does Firehose handle oversized records?**
+
+**Answer:**
+Max record size is **1 MB** (same as Kinesis Streams).
+If larger:
+
+* It can send the record to the **backup S3 bucket**
+* Or reject it entirely
+
+For huge records: upload to S3 → send pointer via Firehose.
+
+---
+
+### **What is the retry policy for destinations like Redshift or OpenSearch?**
+
+**Answer:**
+Firehose retries for:
+
+* **OpenSearch**: up to 5 minutes by default
+* **Redshift**: retries COPY commands
+* For continuous failures → fail to S3 backup bucket
+
+---
+
+### **What is the difference between Firehose Direct Put and Kinesis Stream Source?**
+
+**Answer:**
+Firehose can receive data in two ways:
+
+1. **Direct Put** — producer writes directly to Firehose
+2. **Kinesis Stream Source** — Firehose reads from a Kinesis Data Stream
+
+Use direct put when simple ingestion.
+Use KDS source when you need custom processing first.
+
+---
+
+### **Explain how Firehose loads into Redshift.**
+
+**Answer:**
+
+1. Firehose stores records in an intermediate S3 bucket.
+2. Firehose uses the `COPY` command to load data into Redshift in batches.
+3. If the load fails, records are sent to backup S3.
+4. Redshift rejects invalid rows → stored in S3 as well.
+
+---
+
+### **What compression formats does Firehose support?**
+
+**Answer:**
+
+* GZIP
+* ZIP
+* Snappy
+* Hadoop-compatible compression
+* Parquet/ORC (when using format conversion)
+
+---
+
+### **What happens when Firehose cannot reach its destination?**
+
+**Answer:**
+Firehose retries for a period, and if still failing:
+
+* Stores data in S3 backup (if enabled)
+* Sends CloudWatch alarms
+* Continues retrying until recovered
+
+Firehose never drops data silently.
+
+---
+
+### **How does Firehose scale automatically?**
+
+**Answer:**
+Firehose adjusts ingestion, batching, and delivery capacity based on load automatically.
+No shard provisioning, no manual scaling, no throttling logic.
+
+---
+
+### **What are typical Firehose monitoring metrics?**
+
+**Answer:**
+
+* `DeliveryToS3.Success`
+* `DeliveryToRedshift.Success`
+* `BackupFailure`
+* `BytesDelivered`
+* `DeliveryToOpenSearch.*`
+* `ThrottledRecords`
+* `KinesisMillisBehindLatest` (when using KDS source)
+
+---
+
+### **How do you handle schema evolution in Firehose?**
+
+**Answer:**
+
+* Use Parquet/ORC conversion for schema tracking
+* Use Lambda transformation to modify schema
+* Store raw events in S3 backup for reprocessing
+
+---
+
+### **What happens if Lambda transformation fails?**
+
+**Answer:**
+Firehose follows this flow:
+
+* Retries lambda
+* If still failing → sends record to **Backup S3**
+* Marks transformation as failed in CloudWatch
+
+---
+
+### **Can Firehose encrypt data?**
+
+**Answer:**
+Yes:
+
+* Encryption at rest using KMS
+* In-transit via TLS
+* S3 objects can be encrypted (SSE-S3 or SSE-KMS)
+
+---
+
+### **What is a common Firehose architecture?**
+
+**Answer:**
+Producers → Firehose → (Optional Lambda transform) → S3/Redshift/OpenSearch
+Plus Backup S3 for DLQ events.
+
+---
+
+### **Can Firehose push to multiple destinations?**
+
+**Answer:**
+No. One Firehose delivery stream = one primary destination.
+But you can chain Firehose + Lambda → multiple Firehoses or Streams.
+
+---
+
+### **Firehose vs Kafka + Connect?**
+
+**Answer:**
+Firehose is AWS-native and fully managed with zero operations.
+Kafka Connect is more flexible but requires more setup, maintenance, workers, connectors, scaling, etc.
+
+---
+
+### **Typical Firehose use cases:**
+
+* Log aggregation
+* Real-time analytics ETL
+* Stream big data to data lake (S3)
+* Search indexing (OpenSearch)
+* Redshift batch loading
+* Metric pipelines
+* Mobile/IoT event ingestion
+
+---
+
+# **🔥 Developer Examples (Short)**
+
+### **Send events directly to Firehose — Node.js**
+
+```js
+import { FirehoseClient, PutRecordCommand } from "@aws-sdk/client-firehose";
+
+const client = new FirehoseClient({ region: "us-east-1" });
+
+await client.send(new PutRecordCommand({
+  DeliveryStreamName: "my-firehose-stream",
+  Record: {
+    Data: Buffer.from(JSON.stringify({ user: 1, action: "click" }) + "\n")
+  }
+}));
+```
+
+---
+
+### **Firehose Lambda Transformation (Node.js)**
+
+```js
+export const handler = async (event) => {
+  return {
+    records: event.records.map(r => ({
+      recordId: r.recordId,
+      result: "Ok", 
+      data: Buffer.from(
+        JSON.stringify({ ...JSON.parse(Buffer.from(r.data, 'base64')), ts: Date.now() })
+      ).toString('base64')
+    }))
+  };
+};
+```
+
+---
+
+# **🔥 Additional SDE-3 Questions**
+
+### **How did you tune Firehose buffer interval and size?**
+
+E.g., Buffer Size = 5MB, Interval = 60 seconds for near-real-time.
+For cost optimization, increase buffer = fewer writes, lower Redshift COPY usage.
+
+---
+
+### **Did you enable dynamic partitioning in Firehose? Why?**
+
+Use when writing large, analytics-driven S3 datasets using folders like:
+`/year=2025/month=02/day=15/region=ap-south-1/`.
+
+---
+
+### **What was your backup S3 strategy?**
+
+Store all failures (backupMode = All) + lifecycle rules + Glue crawler for error inspection.
+
+---
+
+### **How did you handle Redshift COPY failures in Firehose?**
+
+By monitoring delivery failures, inspecting rejected rows from S3, and validating schema via Glue/Athena.
+
+---
+
+### **How did you integrate Firehose with Kinesis Data Streams?**
+
+Firehose sourced from a Kinesis Stream when custom real-time transformation was required before batching and delivery.
+
+---
+
 
