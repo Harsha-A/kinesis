@@ -212,4 +212,366 @@ export const handler = async (event) => {
 ```
 
 
-Which would you like next?
+
+# **📘 Amazon Kinesis Data Streams — Interview Questions & Answers**
+
+---
+
+### **What is Amazon Kinesis Data Streams, and how does it work?**
+
+**Answer:**
+Amazon Kinesis Data Streams (KDS) is a fully managed, real-time streaming service that ingests large volumes of data from producers (apps, microservices, IoT, clickstreams), stores them across *shards*, and allows multiple consumers to read and process the data simultaneously. It ensures low-latency, durable, ordered event delivery within each shard.
+
+---
+
+### **What are shards in Kinesis, and why are they important?**
+
+**Answer:**
+Shards are the fundamental unit of capacity in a Kinesis stream. Each shard supports:
+
+* **Write:** 1,000 records/sec OR 1 MB/sec
+* **Read:** 2 MB/sec shared (classic), OR 2 MB/sec per consumer (EFO)
+  Shards determine scalability and parallelism. More shards = higher throughput.
+
+---
+
+### **What is a partition key, and how does it impact data distribution?**
+
+**Answer:**
+The partition key determines **which shard** a record goes to. Kinesis hashes the key (MD5) → maps it to a shard’s hash-key range.
+
+* Same partition key = guaranteed ordering (within that shard)
+* Bad or non-distributed partition keys = hot shards
+
+---
+
+### **Does Kinesis guarantee message ordering?**
+
+**Answer:**
+**Yes — but only within a shard.**
+Records inside a single shard maintain strict ordering via sequence numbers.
+Kinesis does *not* guarantee global ordering across multiple shards.
+
+---
+
+### **How does Kinesis provide durability?**
+
+**Answer:**
+Kinesis synchronously replicates records across **three Availability Zones** before acknowledging the PutRecord/PutRecords request. This ensures no single-AZ failure can cause data loss.
+
+---
+
+### **What is the retention period of a Kinesis stream?**
+
+**Answer:**
+Default: **24 hours**
+Configurable: **up to 7 days** (standard)
+Extended retention (long-term): available (additional cost).
+
+---
+
+### **What are Enhanced Fan-Out (EFO) consumers?**
+
+**Answer:**
+EFO provides each consumer its **own 2 MB/sec throughput per shard** and **70ms latency** using HTTP/2 push delivery.
+Use EFO when:
+
+* Multiple consumers
+* Low-latency dashboards
+* ML inference, monitoring, or real-time UIs
+
+---
+
+### **What are the common consumer types in Kinesis?**
+
+**Answer:**
+
+* **Lambda consumer** — simple serverless processing
+* **KCL (Kinesis Client Library)** — advanced processing, checkpointing, scaling
+* **Enhanced Fan-Out (EFO)** — low-latency push-based consumers
+* **Kinesis Data Analytics (Flink SQL)** — windowing, aggregation, joins
+
+---
+
+### **Explain checkpointing in Kinesis Consumer applications.**
+
+**Answer:**
+Checkpointing tracks the last-processed sequence number in a shard.
+KCL stores checkpoints in **DynamoDB**.
+Benefits:
+
+* Ensures progress
+* Enables restart without reprocessing
+* Coordinates shards across multiple workers
+
+---
+
+### **What is meant by a “hot shard”? Why does it happen?**
+
+**Answer:**
+A hot shard receives disproportionately high traffic → exceeding 1 MB/sec or 1,000 req/sec.
+Common cause: badly distributed partition keys (e.g., all traffic = `"user123"`).
+
+---
+
+### **How do you fix uneven partition distribution or a hot shard?**
+
+**Answer:**
+
+* Add randomness to partition keys (`userId#bucket`)
+* Use KPL (producer-side aggregation)
+* Split the hot shard (`SplitShard`)
+* Spread heavy producers across multiple keys
+* Switch to on-demand stream mode (auto scaling)
+* Re-partition with composite keys (`region-userId`)
+
+---
+
+### **Explain shard splitting and merging.**
+
+**Answer:**
+
+* **SplitShard** → 1 shard → 2 shards
+  Used when traffic increases or shard becomes hot.
+* **MergeShard** → 2 shards → 1 shard
+  Used to reduce cost when traffic drops.
+  After a split/merge, consumers must process parent shards before child shards (KCL handles this automatically).
+
+---
+
+### **What happens when a PutRecord call exceeds throughput?**
+
+**Answer:**
+Kinesis returns `ProvisionedThroughputExceededException`.
+Producer must:
+
+* Retry with exponential backoff
+* Use batching
+* Reduce request rate
+* Fix partition keys
+* Increase shard count
+
+---
+
+### **How do you calculate the required number of shards?**
+
+**Answer:**
+You must satisfy **both** of these:
+
+1. **Based on records/sec:**
+
+```
+shards = ceil(total_records_per_sec / 1000)
+```
+
+2. **Based on MB/sec:**
+
+```
+shards = ceil(total_MB_per_sec / 1MB)
+```
+
+Choose the **larger** of the two.
+
+---
+
+### **How do you handle millions of messages per minute with Kinesis?**
+
+**Answer:**
+
+* Provision enough shards
+* Use KPL aggregation
+* Use Enhanced Fan-Out
+* Auto-scale via CloudWatch metrics and `UpdateShardCount`
+* Use Flink/KDS Analytics for windowed aggregates
+* Apply backpressure on producers
+* Place producers and consumers in same region (no cross-region)
+
+---
+
+### **What is KPL (Kinesis Producer Library) and why is it used?**
+
+**Answer:**
+KPL aggregates many small records into larger ones to reduce API calls and maximize throughput. It also does retries, time-based flushing, and efficient batching.
+
+---
+
+### **What are common use cases of Kinesis Data Streams?**
+
+**Answer:**
+
+* Clickstream analytics
+* IoT telemetry
+* Real-time fraud detection
+* Payment/event streaming
+* Log ingestion
+* Multi-consumer fan-out pipelines
+* ETL for ML systems (feature pipelines)
+
+---
+
+### **What is the maximum record size and how do you handle larger data?**
+
+**Answer:**
+Max record size = **1 MB**
+To handle larger data:
+
+* Upload to S3 and send **pointer/key** in Kinesis record
+* Compress records before sending
+* Split large events into smaller ones
+
+---
+
+### **What is the difference between Kinesis Data Streams and Firehose?**
+
+**Answer:**
+
+| Feature       | Kinesis Data Streams | Firehose                            |
+| ------------- | -------------------- | ----------------------------------- |
+| Consumer type | Custom consumers     | Auto-delivery                       |
+| Latency       | 70–200ms             | 1–120 seconds                       |
+| Control       | Full control         | Fully-managed                       |
+| Use case      | Real-time processing | Streaming to S3/Redshift/OpenSearch |
+
+---
+
+### **How does KCL (Kinesis Client Library) work internally?**
+
+**Answer:**
+KCL uses DynamoDB to store:
+
+* Lease ownership per shard
+* Checkpoints
+* Worker heartbeats
+
+It automatically:
+
+* Balances shards among workers
+* Handles split/merge
+* Recovers from worker failures
+* Ensures exactly-once checkpointing (not exactly-once processing)
+
+---
+
+### **How do you implement idempotency for Kinesis consumers?**
+
+**Answer:**
+Because Kinesis is at-least-once:
+
+* Include `eventId` in each message
+* Write to DynamoDB with conditional check:
+  `attribute_not_exists(eventId)`
+* Deduplicate with TTL-based dedupe table
+* Use idempotent sinks (upsert writes)
+
+---
+
+### **How do you scale Kinesis automatically?**
+
+**Answer:**
+Use a Lambda autoscaler to read CloudWatch metrics (`IncomingBytes`, `IncomingRecords`) and call `UpdateShardCount` to scale up/down.
+Or use **Kinesis On-Demand mode** (automatic scaling by AWS).
+
+---
+
+### **How do you secure a Kinesis stream?**
+
+**Answer:**
+
+* IAM least-privilege policies
+* Server-Side Encryption (SSE-KMS)
+* VPC endpoints (Privatelink)
+* Access policies for specific producers/consumers
+* KMS key rotation if needed
+
+---
+
+### **What metrics help detect consumer lag?**
+
+**Answer:**
+
+* **GetRecords.IteratorAgeMilliseconds**
+  If this increases → consumers are falling behind → increase consumer concurrency, use EFO, improve code speed.
+
+---
+
+### **How do you send multiple events in one request?**
+
+**Answer:**
+Use `PutRecords` (max 500 records per API call).
+
+---
+
+### **Node.js PutRecords Example:**
+
+```js
+import { KinesisClient, PutRecordsCommand } from "@aws-sdk/client-kinesis";
+
+const client = new KinesisClient({ region: "us-east-1" });
+
+await client.send(new PutRecordsCommand({
+  StreamName: "orders-stream",
+  Records: [
+    { Data: Buffer.from("event-1"), PartitionKey: "user-1" },
+    { Data: Buffer.from("event-2"), PartitionKey: "user-2" }
+  ]
+}));
+```
+
+---
+
+### **Node.js Consumer Example (Lambda)**
+
+```js
+export const handler = async (event) => {
+  for (const rec of event.Records) {
+    const json = JSON.parse(Buffer.from(rec.kinesis.data,'base64').toString());
+    console.log('Processing event:', json);
+  }
+};
+```
+
+---
+
+# **Additional Interview Questions (SDE-3)**
+
+### **What was your shard count and why?**
+
+Explain calculations based on records/sec and MB/sec, plus future load estimates.
+
+---
+
+### **Did you use Extended Fan-Out? Why or why not?**
+
+Use if multiple consumers with low-latency requirements. Skip if cost-sensitive.
+
+---
+
+### **How did you handle failures in consumer processing?**
+
+Use DLQ (SQS) for failed events + CloudWatch alarms.
+
+---
+
+### **How did you debug consumer processing lag?**
+
+* Check `IteratorAgeMilliseconds`
+* Check KCL leasing
+* Check DB bottleneck downstream
+* Increase EFO throughput
+* Add consumer parallelism
+
+---
+
+### **What was your retention window and why?**
+
+E.g., 48 hours → supports reprocessing + analytics backlog safety.
+
+---
+
+### **Did you use KPL? Why?**
+
+Use KPL when producer throughput is high and aggregation/batching is needed.
+
+---
+
+
